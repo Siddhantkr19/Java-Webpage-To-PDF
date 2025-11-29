@@ -11,6 +11,7 @@ import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.print.PrintOptions;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.openqa.selenium.JavascriptExecutor;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -86,7 +87,15 @@ public class Main {
                     driver.get(url);
                     Thread.sleep(2000); // Wait for render
 
-                    // Configure Print Options (Background=true for Colors)
+                    ((JavascriptExecutor) driver).executeScript(
+                            "var elements = document.querySelectorAll('nav, aside, footer, .sidebar, .menu, .toc, .table-of-contents');" +
+                                    "for (var i = 0; i < elements.length; i++) {" +
+                                    "    elements[i].style.display = 'none';" +
+                                    "}"
+                    );
+                    Thread.sleep(500); // Wait for elements to disappear
+
+
                     PrintOptions printOptions = new PrintOptions();
                     printOptions.setBackground(true);
                     printOptions.setShrinkToFit(true);
