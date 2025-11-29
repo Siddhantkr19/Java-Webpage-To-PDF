@@ -1,5 +1,5 @@
 package com.example.demo;
-
+import java.util.Base64;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.openqa.selenium.By;
@@ -10,6 +10,7 @@ import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.print.PrintOptions;
+import org.apache.pdfbox.pdmodel.PDDocument;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -18,7 +19,7 @@ import java.util.*;
 
 public class Main {
     public static void main(String[] args) {
-        // --- SETUP ---
+        // Setup WebDriver
         WebDriverManager.chromedriver().setup();
 
         ChromeOptions options = new ChromeOptions();
@@ -55,10 +56,22 @@ public class Main {
             Set<String> uniqueUrls = new LinkedHashSet<>(); // Use Set to avoid duplicates
 
             System.out.println("🔍 Scanning for chapters...");
+            // 1. Normalize the main URL for comparison (remove trailing slash)
+            String normalizedMainUrl = mainUrl.endsWith("/") ? mainUrl.substring(0, mainUrl.length() - 1) : mainUrl;
+
             for (WebElement link : links) {
                 String href = link.getAttribute("href");
-                // Filter only relevant handbook links
-                if (href != null && href.contains("java-programming-handbook")) {
+
+                // Safety check for null
+                if (href == null) continue;
+
+                // Normalize href for comparison
+                String normalizedHref = href.endsWith("/") ? href.substring(0, href.length() - 1) : href;
+
+                // Filter Logic:
+                // 1. Must belong to the handbook
+                // 2. MUST NOT be the main "Table of Contents" page itself
+                if (normalizedHref.contains("java-programming-handbook") && !normalizedHref.equals(normalizedMainUrl)) {
                     uniqueUrls.add(href);
                 }
             }
@@ -81,10 +94,41 @@ public class Main {
                     // Print Page
                     Pdf pdf = ((PrintsPage) driver).print(printOptions);
 
-                    // Save to temporary file in the output directory
-                    String filename = outputDir.resolve("temp_chapter_" + count + ".pdf").toString();
-                    byte[] data = Base64.getDecoder().decode(pdf.getContent());
-                    Files.write(Paths.get(filename), data);
+
+                    // 1. Get the last part of the URL (e.g. "java-if-else")
+                    String slug = url;
+                    if (slug.endsWith("/")) {
+                        slug = slug.substring(0, slug.length() - 1);
+                    }
+                    int lastSlashIndex = slug.lastIndexOf("/");
+                    if (lastSlashIndex != -1) {
+                        slug = slug.substring(lastSlashIndex + 1);
+                    }
+
+
+                    String topicName = slug.replace("-", "_");
+
+                    // 3. Create the new filename: "java_if_else_chapter_1.pdf"
+                    String paddedCount = String.format("%02d", count);
+                    String filename = outputDir.resolve(paddedCount+ "_"+ topicName + "_chapter_" + count + ".pdf").toString();
+
+                    byte[] originalPdfBytes = Base64.getDecoder().decode(pdf.getContent());
+
+                            // Load the PDF into memory to edit it
+                    try (PDDocument document = PDDocument.load(originalPdfBytes)) {
+                        int totalPages = document.getNumberOfPages();
+
+                        // Check if the PDF has enough pages to remove (must have > 2)
+                        // If it only has 1 or 2 pages, we don't touch it (to avoid deleting the actual content)
+                        if (totalPages > 2) {
+                            document.removePage(totalPages - 1); // Remove the very last page
+                            document.removePage(totalPages - 2); // Remove the new last page (originally second-to-last)
+                            System.out.println("   ✂️ Removed last 2 pages from chapter " + count);
+                        }
+
+                        // Save the modified PDF to the disk
+                        document.save(filename);
+                    }
 
                     tempPdfFiles.add(filename);
                     count++;
