@@ -87,13 +87,46 @@ public class Main {
                     driver.get(url);
                     Thread.sleep(2000); // Wait for render
 
+                    // --- 👇 NEW: ROBUST DARK MODE FIX 👇 ---
                     ((JavascriptExecutor) driver).executeScript(
-                            "var elements = document.querySelectorAll('nav, aside, footer, .sidebar, .menu, .toc, .table-of-contents');" +
-                                    "for (var i = 0; i < elements.length; i++) {" +
-                                    "    elements[i].style.display = 'none';" +
-                                    "}"
+                            // 1. Toggle Native Dark Mode (Cleaner look)
+                            "document.documentElement.classList.add('dark');" +
+                                    "document.documentElement.classList.remove('light');" +
+
+                                    // 2. Inject Custom CSS to Override Print Settings
+                                    // This forces the PDF engine to respect the dark colors
+                                    "var style = document.createElement('style');" +
+                                    "style.innerHTML = `" +
+                                    "   @media print {" +
+                                    "       body, html {" +
+                                    "           background-color: #000000 !important;" +
+                                    "           -webkit-print-color-adjust: exact !important;" +
+                                    "           print-color-adjust: exact !important;" +
+                                    "       }" +
+                                    "       /* Force all text to be white */" +
+                                    "       h1, h2, h3, p, span, div, li, td, th {" +
+                                    "           color: #ffffff !important;" +
+                                    "       }" +
+                                    "       /* Style Code Blocks (Dark Gray) */" +
+                                    "       pre, code, .hljs {" +
+                                    "           background-color: #1e1e1e !important;" +
+                                    "           color: #ffffff !important;" +
+                                    "           border: 1px solid #333 !important;" +
+                                    "       }" +
+                                    "       /* Hide Sidebar & Nav */" +
+                                    "       nav, aside, footer, .sidebar, .menu, .toc, .table-of-contents {" +
+                                    "           display: none !important;" +
+                                    "       }" +
+                                    "   }" +
+                                    "`;" +
+                                    "document.head.appendChild(style);" +
+
+                                    // 3. Fallback: Manually set styles on screen just in case
+                                    "document.body.style.backgroundColor = '#000000';" +
+                                    "document.body.style.color = '#ffffff';"
                     );
-                    Thread.sleep(500); // Wait for elements to disappear
+                    Thread.sleep(2000); // Wait for styles to apply
+                    // --- 👆 END OF FIX 👆 --- disappear
 
 
                     PrintOptions printOptions = new PrintOptions();
